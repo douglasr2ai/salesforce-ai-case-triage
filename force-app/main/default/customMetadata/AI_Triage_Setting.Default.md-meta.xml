@@ -16,6 +16,6 @@
     </values>
     <values>
         <field>Model__c</field>
-        <value xsi:type="xsd:string">anthropic/claude-haiku-5.5</value>
+        <value xsi:type="xsd:string">deepseek/deepseek-v4-flash-0731</value>
     </values>
 </CustomMetadata>
