@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <agentAccesses>
+        <agentName>Support_Copilot</agentName>
+        <enabled>true</enabled>
+    </agentAccesses>
+    <classAccesses>
+        <apexClass>FindUrgentCasesAction</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>TriageCaseAction</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
     <description
   >Grants access to the AI triage fields on Case and to the OpenRouter credential used for callouts.</description>
     <externalCredentialPrincipalAccesses>

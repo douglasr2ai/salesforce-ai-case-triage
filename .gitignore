@@ -46,3 +46,7 @@ $RECYCLE.BIN/
 **/__pycache__/
 **/.venv/
 **/venv/
+
+# Compiled agent artifacts retrieved by "sf agent publish" (source of truth is the .agent file)
+**/aiAgents/
+**/aiAgentDefinitionVersions/
