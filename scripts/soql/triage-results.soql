@@ -1,0 +1,5 @@
+SELECT CaseNumber, Subject, AI_Status__c, AI_Category__c, AI_Sentiment__c, AI_Suggested_Priority__c, AI_Summary__c
+FROM Case
+WHERE AI_Status__c != null
+ORDER BY CreatedDate DESC
+LIMIT 20

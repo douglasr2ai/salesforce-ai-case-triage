@@ -1,58 +1,144 @@
-# Salesforce DX Project
+# AI Case Triage for Salesforce
 
-Salesforce DX is a development approach that brings source-driven development, team collaboration, and continuous integration to the Salesforce Platform. Instead of working directly in an org through a web browser, you work with metadata as source files in a local DX project, track changes in version control, and deploy through automated processes.
+[![CI](https://github.com/douglasr2ai/salesforce-ai-case-triage/actions/workflows/ci.yml/badge.svg)](https://github.com/douglasr2ai/salesforce-ai-case-triage/actions/workflows/ci.yml)
 
-This project template gets you started with the tools and structure you need to build Salesforce applications using source control, scratch orgs, and the Salesforce CLI.
+Every new support **Case** in Salesforce is read by an LLM, which returns a
+**category**, **suggested priority**, **customer sentiment**, a **one-line summary** and a
+**draft reply** in the customer's language. Agents see the result in a Lightning panel on
+the Case page and can apply the suggested priority, copy the reply, or run the analysis again.
 
-## Prerequisites
+Built with Apex, Lightning Web Components and the Salesforce CLI. The LLM is reached through
+[OpenRouter](https://openrouter.ai), so changing the model (Claude, GPT, Llama…) only takes a
+configuration change.
 
-Before you start, make sure you have:
+## How it works
 
-- **Salesforce CLI** - Download from [developer.salesforce.com/tools/salesforcecli](https://developer.salesforce.com/tools/salesforcecli). See [Install Salesforce CLI](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_install_cli.htm) for details.
-- **VS Code with Salesforce Extension Pack** - See [Installation Instructions](https://developer.salesforce.com/docs/platform/sfvscode-extensions/guide/install.html) for details. Includes the Agentforce Vibes extension.
-- **A development org** - Sign up for a free Developer Edition org [here](https://developer.salesforce.com/signup).
-- **Dev Hub enabled** (optional, required to create scratch orgs) - You can enable Dev Hub in your development org under Setup > Dev Hub.  See [Provide Developers Access to Salesforce DX Tools](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_setup_dx_tools.htm).
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer
+    participant Case as Case (trigger)
+    participant Job as CaseTriageQueueable
+    participant Svc as CaseTriageService
+    participant LLM as OpenRouter (LLM)
+    participant UI as caseAiTriagePanel (LWC)
 
-## Project Structure
+    Customer->>Case: Opens a case (email, web, phone)
+    Case->>Case: before insert: AI_Status__c = Pending
+    Case->>Job: after insert: enqueue (async)
+    Job->>Svc: triage(case)
+    Svc->>LLM: POST callout:OpenRouter/chat/completions
+    LLM-->>Svc: JSON {category, priority, sentiment, summary, reply}
+    Svc-->>Job: Case with AI fields (Completed / Failed)
+    Job->>Case: update
+    UI->>Case: polls while Pending, then renders the result
+```
 
-Your DX project follows this structure:
+1. **`CaseTrigger` → `CaseTriggerHandler`**: new cases are marked `Pending` and a Queueable job
+   is enqueued. Setting `AI_Status__c` back to `Pending` (the **Run again** button) runs the
+   triage again.
+2. **`CaseTriageQueueable`**: runs asynchronously, because Apex triggers can't make HTTP
+   callouts. It processes up to 50 cases per job and chains itself for the rest, so it stays
+   below the 100-callouts-per-transaction limit. All callouts happen before any DML.
+3. **`CaseTriageService`**: builds the prompt, calls the model and maps the answer onto the
+   Case. It never throws: a failure is stored on the record (`AI_Status__c = Failed`,
+   `AI_Error__c`) so agents can see it.
+4. **`OpenRouterClient`**: a small HTTP client for the OpenAI-compatible chat completions API.
+   It handles HTTP errors as well as error objects that come back with HTTP 200.
+5. **`caseAiTriagePanel`** (LWC): uses Lightning Data Service (`getRecord` / `updateRecord`)
+   and needs no Apex controller. While the job runs it polls with
+   `notifyRecordUpdateAvailable`.
 
-- **`force-app/main/default/`** - Your metadata source files live in this default package directory. You can configure additional package directories in the `sfdx-project.json` file.
-- **`config/`** - Scratch org definitions and project settings
-- **`scripts/`** - Automation scripts for common tasks
-- **`sfdx-project.json`** - Project manifest that defines package directories, namespace, API version, and other project-level settings
+## Design decisions
 
-See [Salesforce DX Project Configuration](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_ws_config.htm).
+| Concern               | Decision                                                                                                                                                                                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Secrets**           | The API key is stored in an **External Credential** (custom auth header) and used through a **Named Credential**. It never appears in code or in this repo. Access is granted through the `Case_AI_Triage_User` permission set.                                             |
+| **Configuration**     | `AI_Triage_Setting__mdt` (Custom Metadata) holds the model, max tokens and an on/off switch, so changing them doesn't need a code change.                                                                                                                                   |
+| **Reliable output**   | The model is asked for JSON (`response_format: json_object`). The parser removes markdown fences, and every value is matched against the field's picklist (read through `Schema` describe). An unexpected value falls back to a safe default instead of failing the update. |
+| **Prompt injection**  | Case text is wrapped in `<case>` tags and the system prompt treats it as untrusted data. One sample case tries an injection attack on purpose.                                                                                                                              |
+| **Governor limits**   | Async processing, chunks of 50, chaining for larger volumes, a check that a Queueable slot is free before enqueuing, and all callouts before any DML.                                                                                                                       |
+| **Bulk-safe trigger** | One trigger per object, logic in a handler class, no SOQL/DML inside loops.                                                                                                                                                                                                 |
+| **Multilingual**      | The reply is written in the customer's language. The sample data mixes English and Portuguese.                                                                                                                                                                              |
 
-## Get Started
+## Tests
 
-Ready to start developing? The [Get Started with Salesforce DX](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_get_started_dx.htm) guide walks you through your first project, from creating a scratch org to creating a simple Apex class or LWC to deploying your code to a sandbox.
+| Layer | Tooling                                      | What is covered                                                                                                                                |
+| ----- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Apex  | `HttpCalloutMock`, `Test.startTest/stopTest` | HTTP errors, malformed responses, JSON parsing and normalization, async trigger flow, re-run, bulk insert, kill switch. **97% coverage**.      |
+| LWC   | Jest (`@salesforce/sfdx-lwc-jest`)           | Every UI state, the actions (apply priority, re-run, copy) and the polling lifecycle (keeps polling, stops when done, gives up after N tries). |
 
-## Common Salesforce CLI Commands
+```bash
+npm run test:unit                                   # LWC (Jest)
+sf apex run test --test-level RunLocalTests --code-coverage --result-format human --wait 10
+```
 
-Here are common CLI commands that you'll use the most:
+CI (GitHub Actions) runs Prettier, ESLint and Jest on every push. When the `SF_AUTH_URL` secret
+is set, it also runs a **check-only deploy** with all Apex tests against an org.
 
-- `sf org login web`: Authorize an org
-- `sf org open`: Open your org in a browser
-- `sf org create scratch`: Create a scratch org
-- `sf project deploy start`: Deploy metadata to your org
-- `sf project retrieve start`: Retrieve metadata from your org
-- `sf template generate <artifact>`: Scaffold new components, such as Apex classes and triggers, LWC components, Lightning apps, and more
-- `sf apex <command>`: Run Apex tests, run anonymous Apex blocks, and view logs
-- `sf data <command>`: Work with test data
-- `sf alias <command>`: Manage org aliases
-- `sf config <command>`: Configure CLI settings
+## Project structure
 
-## Use Agentforce Vibes to Build Lightning Apps
+```
+force-app/main/default/
+├── classes/
+│   ├── OpenRouterClient.cls          # HTTP client (Named Credential)
+│   ├── CaseTriageService.cls         # prompt, parsing, field mapping
+│   ├── CaseTriageQueueable.cls       # async + chunked processing
+│   ├── CaseTriggerHandler.cls        # trigger logic
+│   ├── OpenRouterMock.cls            # HttpCalloutMock for tests
+│   └── *Test.cls
+├── triggers/CaseTrigger.trigger
+├── lwc/caseAiTriagePanel/            # UI + Jest tests
+├── objects/Case/fields/AI_*.field-meta.xml
+├── objects/AI_Triage_Setting__mdt/   # configuration type
+├── customMetadata/                   # default configuration record
+├── externalCredentials/ namedCredentials/
+├── permissionsets/Case_AI_Triage_User.permissionset-meta.xml
+├── flexipages/Case_AI_Triage_Record_Page.flexipage-meta.xml
+└── applications/                     # page assignment in Service Console
+scripts/
+├── apex/create-sample-cases.apex     # demo data (EN + PT-BR)
+└── soql/triage-results.soql
+```
 
-Transform your ideas into custom Lightning apps that extend CRM workflows directly in Lightning Experience. Through natural conversations with Agentforce Vibes, implement custom objects and fields, complex business logic, and dynamic UI components. See [Build a Lightning App Using Agentforce Vibes](https://developer.salesforce.com/docs/platform/einstein-for-devs/guide/lexapp-overview.html).
+## Setup
 
-## Additional Resources
+Prerequisites: a Salesforce org (a free
+[Developer Edition](https://developer.salesforce.com/signup) works),
+[Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli), Node.js and an
+[OpenRouter API key](https://openrouter.ai/keys).
 
-- [Agentforce Vibes Developer Guide](https://developer.salesforce.com/docs/platform/einstein-for-devs/guide/einstein-overview.html)
-- [Salesforce CLI Installation Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm)
-- [Salesforce DX Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/)
-- [Salesforce CLI Command Reference](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/)
-- [Salesforce CLI Plugin Development Guide](https://developer.salesforce.com/docs/platform/salesforce-cli-plugin/guide/conceptual-overview.html)
-- [Salesforce VS Code Extensions Documentation](https://developer.salesforce.com/tools/vscode/)
+```bash
+git clone https://github.com/douglasr2ai/salesforce-ai-case-triage.git && cd salesforce-ai-case-triage
+npm install
 
+sf org login web --alias portfolio --set-default
+sf project deploy start --source-dir force-app
+sf org assign permset --name Case_AI_Triage_User
+```
+
+**Add the API key** (one-time manual step, so the secret stays out of source control):
+
+1. Setup → **Named Credentials** → **External Credentials** tab → **OpenRouter**.
+2. Under **Principals**, edit `OpenRouterKey` → **Add authentication parameter**:
+   name `ApiKey`, value = your OpenRouter key → Save.
+
+**Try it:**
+
+```bash
+sf apex run --file scripts/apex/create-sample-cases.apex
+sf data query --file scripts/soql/triage-results.soql   # results appear after a few seconds
+```
+
+To change the model, edit **Custom Metadata Types → AI Triage Setting → Default** (any
+[OpenRouter model slug](https://openrouter.ai/models)) or the record in `customMetadata/`.
+
+## Roadmap
+
+- [ ] Expose the triage as an **Agentforce** agent action (`@InvocableMethod`)
+- [ ] Assign cases to queues based on the AI category
+- [ ] Dashboard: case volume by sentiment and category
+
+## License
+
+[MIT](LICENSE)

@@ -1,7 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Model__c</fullName>
-    <description>OpenRouter model slug, e.g. anthropic/claude-haiku-5.5 or openai/gpt-4o-mini.</description>
+    <description
+  >OpenRouter model slug, e.g. anthropic/claude-haiku-5.5 or openai/gpt-4o-mini.</description>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <label>Model</label>

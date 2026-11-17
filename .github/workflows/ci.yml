@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-unit-tests:
+    name: Lint & LWC unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prettier
+        run: npm run prettier:verify
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Jest (LWC)
+        run: npm run test:unit:coverage
+
+  validate-deploy:
+    name: Validate deploy & Apex tests
+    needs: lint-and-unit-tests
+    runs-on: ubuntu-latest
+    env:
+      SF_AUTH_URL: ${{ secrets.SF_AUTH_URL }}
+    steps:
+      - name: Skip when no org is configured
+        if: env.SF_AUTH_URL == ''
+        run: echo "::notice::SF_AUTH_URL secret not set, skipping org validation."
+
+      - uses: actions/checkout@v4
+        if: env.SF_AUTH_URL != ''
+
+      - uses: actions/setup-node@v4
+        if: env.SF_AUTH_URL != ''
+        with:
+          node-version: 22
+
+      - name: Install Salesforce CLI
+        if: env.SF_AUTH_URL != ''
+        run: npm install --global @salesforce/cli
+
+      - name: Authenticate
+        if: env.SF_AUTH_URL != ''
+        run: |
+          echo "$SF_AUTH_URL" > ./auth-url.txt
+          sf org login sfdx-url --sfdx-url-file ./auth-url.txt --alias ci
+          rm ./auth-url.txt
+
+      # Check-only deploy: compiles everything and runs all local Apex tests
+      # without changing the org.
+      - name: Validate deploy (RunLocalTests)
+        if: env.SF_AUTH_URL != ''
+        run: |
+          sf project deploy validate \
+            --source-dir force-app \
+            --target-org ci \
+            --test-level RunLocalTests \
+            --coverage-formatters text \
+            --wait 30

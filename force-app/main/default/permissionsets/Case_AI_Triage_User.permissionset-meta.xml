@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Grants access to the AI triage fields on Case and to the OpenRouter credential used for callouts.</description>
+    <description
+  >Grants access to the AI triage fields on Case and to the OpenRouter credential used for callouts.</description>
     <externalCredentialPrincipalAccesses>
         <enabled>true</enabled>
-        <externalCredentialPrincipal>OpenRouter-OpenRouterKey</externalCredentialPrincipal>
+        <externalCredentialPrincipal
+    >OpenRouter-OpenRouterKey</externalCredentialPrincipal>
     </externalCredentialPrincipalAccesses>
     <objectPermissions>
         <allowCreate>false</allowCreate>
