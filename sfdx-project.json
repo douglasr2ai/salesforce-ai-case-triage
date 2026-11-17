@@ -3,6 +3,10 @@
     {
       "path": "force-app",
       "default": true
+    },
+    {
+      "path": "agent-access",
+      "default": false
     }
   ],
   "name": "case-ai-triage",

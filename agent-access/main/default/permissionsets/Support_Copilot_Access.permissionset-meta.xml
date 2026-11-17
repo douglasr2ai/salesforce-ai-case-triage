@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <agentAccesses>
+        <agentName>Support_Copilot</agentName>
+        <enabled>true</enabled>
+    </agentAccesses>
+    <description
+  >Shows the Support Copilot agent in the Agentforce panel. Deploy after the agent is published (it must exist first).</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Support Copilot Access</label>
+</PermissionSet>
