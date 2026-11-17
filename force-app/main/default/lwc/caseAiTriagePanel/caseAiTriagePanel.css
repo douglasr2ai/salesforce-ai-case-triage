@@ -1,0 +1,12 @@
+.reply {
+  white-space: pre-wrap;
+}
+
+.error-details {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+lightning-badge {
+  margin-right: 0.25rem;
+}

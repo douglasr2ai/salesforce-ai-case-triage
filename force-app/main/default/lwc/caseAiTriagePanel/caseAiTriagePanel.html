@@ -1,0 +1,144 @@
+<template>
+  <lightning-card title="AI Triage" icon-name="utility:einstein">
+    <lightning-button
+      slot="actions"
+      label={runLabel}
+      icon-name="utility:refresh"
+      onclick={handleRun}
+      disabled={runDisabled}
+      data-id="run"
+    ></lightning-button>
+
+    <div class="slds-var-p-horizontal_medium">
+      <template lwc:if={isLoading}>
+        <lightning-spinner
+          alternative-text="Loading"
+          size="small"
+        ></lightning-spinner>
+      </template>
+
+      <template lwc:elseif={error}>
+        <p class="slds-text-color_error" data-id="load-error">
+          {loadErrorMessage}
+        </p>
+      </template>
+
+      <template lwc:elseif={isNotTriaged}>
+        <p class="slds-text-color_weak" data-id="not-triaged">
+          This case has not been analyzed by the AI yet.
+        </p>
+      </template>
+
+      <template lwc:elseif={isPending}>
+        <div data-id="pending">
+          <div class="slds-is-relative" style="height: 3rem">
+            <lightning-spinner
+              alternative-text="Analyzing"
+              size="small"
+            ></lightning-spinner>
+          </div>
+          <p class="slds-text-align_center slds-text-color_weak">
+            Analyzing the case…
+          </p>
+        </div>
+      </template>
+
+      <template lwc:elseif={isFailed}>
+        <div
+          class="slds-notify slds-notify_alert slds-alert_error"
+          role="alert"
+          data-id="failed"
+        >
+          <h2>The AI triage failed. You can try again.</h2>
+        </div>
+        <p
+          class="slds-var-p-top_small slds-text-body_small slds-text-color_weak error-details"
+          data-id="error-details"
+        >
+          {errorDetails}
+        </p>
+      </template>
+
+      <template lwc:elseif={isCompleted}>
+        <div data-id="completed">
+          <p
+            class="slds-text-heading_small slds-var-m-bottom_small"
+            data-id="summary"
+          >
+            {summary}
+          </p>
+
+          <div class="slds-var-m-bottom_small">
+            <lightning-badge
+              label={category}
+              icon-name="utility:topic"
+              data-id="category"
+            ></lightning-badge>
+            <lightning-badge
+              label={sentiment}
+              icon-name={sentimentIcon}
+              class={sentimentBadgeClass}
+              data-id="sentiment"
+            ></lightning-badge>
+            <lightning-badge
+              label={suggestedPriority}
+              icon-name="utility:priority"
+              class={priorityBadgeClass}
+              data-id="priority"
+            ></lightning-badge>
+          </div>
+
+          <template lwc:if={canApplyPriority}>
+            <p class="slds-text-body_small slds-var-m-bottom_small">
+              Suggested priority differs from the current one.
+              <lightning-button
+                variant="base"
+                label="Apply suggested priority"
+                onclick={handleApplyPriority}
+                disabled={applyPriorityDisabled}
+                class="slds-var-m-left_x-small"
+                data-id="apply-priority"
+              ></lightning-button>
+            </p>
+          </template>
+
+          <div class="slds-text-title_caps slds-var-m-bottom_xx-small">
+            Suggested reply
+          </div>
+          <div
+            class="reply slds-box slds-box_x-small slds-theme_shade"
+            data-id="reply"
+          >
+            {suggestedReply}
+          </div>
+          <div class="slds-var-m-top_x-small slds-text-align_right">
+            <lightning-button
+              label="Copy reply"
+              icon-name="utility:copy"
+              onclick={handleCopyReply}
+              disabled={copyDisabled}
+              data-id="copy"
+            ></lightning-button>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <template lwc:if={model}>
+      <div slot="footer" class="slds-text-body_small slds-text-color_weak">
+        {model}
+        <template lwc:if={processedAt}>
+          {footerSeparator}
+          <lightning-formatted-date-time
+            value={processedAt}
+            year="numeric"
+            month="short"
+            day="2-digit"
+            hour="2-digit"
+            minute="2-digit"
+          ></lightning-formatted-date-time>
+        </template>
+      </div>
+    </template>
+  </lightning-card>
+</template>
