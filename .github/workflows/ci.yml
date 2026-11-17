@@ -10,9 +10,9 @@ jobs:
     name: Lint & LWC unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -39,10 +39,10 @@ jobs:
         if: env.SF_AUTH_URL == ''
         run: echo "::notice::SF_AUTH_URL secret not set, skipping org validation."
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: env.SF_AUTH_URL != ''
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: env.SF_AUTH_URL != ''
         with:
           node-version: 22
