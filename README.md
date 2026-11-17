@@ -11,7 +11,9 @@ Built with Apex, Lightning Web Components and the Salesforce CLI. The LLM is rea
 [OpenRouter](https://openrouter.ai), so changing the model (Claude, GPT, Llama…) only takes a
 configuration change.
 
-![AI Triage panel on a Case in the Service Console](docs/images/ai-triage-panel.png)
+![Demo: running the AI triage on a Portuguese case, applying the suggested priority and copying the reply](docs/images/ai-triage-demo.gif)
+
+_Run again → the async job calls the LLM → the panel updates by itself → apply the suggested priority → copy the draft reply._
 
 ## Sample results
 
